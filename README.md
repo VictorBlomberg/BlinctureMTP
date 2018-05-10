@@ -45,10 +45,6 @@ Transfers files from device.
 > BlinctureMTP.exe transfer --waitOnFail --dateTimePattern "yyyyMM\/yyyyMMdd\/HHmmss" "<device id>" "/sdcard/DCIM/Camera" C:\Photos
 ````
 
-## Known Issues
-
-A few `Interop.PortableDevice*.dll` files are missing, and needs to be added manually.
-
 ## License
 
 The MIT License (MIT) (see LICENSE.txt)
