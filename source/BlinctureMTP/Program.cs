@@ -276,7 +276,10 @@ namespace BlinctureMTP
                 var fullPath = Path.GetFullPath(instructionsFilePath);
 
                 Console.WriteLine($"\t{fullPath}\t{instructionsFilePath}");
-                foreach (var line in File.ReadAllLines(fullPath, Utf8Encoding))
+                foreach (var line in File
+                    .ReadAllLines(fullPath, Utf8Encoding)
+                    .Where(line => !string.IsNullOrWhiteSpace(line))
+                    .Where(line => line[0] != '#'))
                 {
                     commands.Add(GetCommandLine(line));
                 }
