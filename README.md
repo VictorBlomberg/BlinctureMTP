@@ -28,8 +28,8 @@ Lists contents of a directory on device.
 $ # DeviceInfo #
 $ [Directory]
 $ Camera/ <id X>
-        image1.jpg <id Y>
-        image2.jpg <id Z>
+$         image1.jpg <id Y>
+$         image2.jpg <id Z>
 $ [EXIT_CODE_OK]
 ````
 
@@ -39,14 +39,10 @@ Transfers files from device.
 
 ````
 > BlinctureMTP.exe transfer "<device id>" "/sdcard/DCIM/Camera" C:\Photos
-$ # Transfer #
-$ [EXIT_CODE_OK]
 ````
 
 ````
 > BlinctureMTP.exe transfer --dateTimePattern "yyyyMM\/yyyyMMdd\/HHmmss" "<device id>" "/sdcard/DCIM/Camera" C:\Photos
-$ # Transfer #
-$ [EXIT_CODE_OK]
 ````
 
 ## Known Issues
