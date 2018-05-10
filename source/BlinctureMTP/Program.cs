@@ -203,7 +203,7 @@ namespace BlinctureMTP
                             tempTargetFileStream.Write(data, 0, data.Length);
 
                             tempTargetFileStream.Position = 0;
-                            targetFileName = GetTargetFileName(commandLine, file.Name, tempTargetFileStream);
+                            targetFileName = GetTargetFileName(commandLine, file.Name, tempTargetFileStream, spinner);
                             tempTargetFileStream.Close();
                         }
 
@@ -227,18 +227,27 @@ namespace BlinctureMTP
             return EXIT_CODE_OK;
         }
 
-        private static string GetTargetFileName(CommandLineItemCollection commandLine, string targetFileName, FileStream fileStream)
+        private static string GetTargetFileName(CommandLineItemCollection commandLine, string targetFileName, FileStream fileStream, Spinner spinner)
         {
             var dateTimePattern = commandLine.GetOptionOrDefault("dateTimePattern")?.Value ?? "yyyy\\/MM\\/yyyy\\-MM\\-dd\\_HH\\-mm\\-ss";
             switch (Path.GetExtension(targetFileName)?.ToLowerInvariant())
             {
                 case ".jpg":
                 case ".jpeg":
-                    using (var reader = new ExifReader(fileStream, true))
+                    try
                     {
-                        if (reader.GetTagValue(ExifTags.DateTimeDigitized, out DateTime timestampPictureTaken))
-                            return $"{timestampPictureTaken.ToString(dateTimePattern, CultureInfo.InvariantCulture)}.jpg";
+                        using (var reader = new ExifReader(fileStream, true))
+                        {
+                            if (reader.GetTagValue(ExifTags.DateTimeDigitized, out DateTime timestampPictureTaken))
+                                return $"{timestampPictureTaken.ToString(dateTimePattern, CultureInfo.InvariantCulture)}.jpg";
 
+                            spinner.Warn("Timestamp not found in EXIF data.");
+                            return targetFileName;
+                        }
+                    }
+                    catch (ExifLibException exifLibException)
+                    {
+                        spinner.Warn($"No EXIF data found (Error: '{exifLibException}').");
                         return targetFileName;
                     }
                 default:
