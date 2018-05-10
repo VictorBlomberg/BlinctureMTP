@@ -48,6 +48,12 @@
     <Reference Include="Nerven.CommandLineParser, Version=0.3.1.0, Culture=neutral, processorArchitecture=MSIL">
       <HintPath>..\..\packages\Nerven.CommandLineParser.0.3.1\lib\netstandard1.0\Nerven.CommandLineParser.dll</HintPath>
     </Reference>
+    <Reference Include="Newtonsoft.Json, Version=11.0.0.0, Culture=neutral, PublicKeyToken=30ad4fe6b2a6aeed, processorArchitecture=MSIL">
+      <HintPath>..\..\packages\Newtonsoft.Json.11.0.1\lib\net45\Newtonsoft.Json.dll</HintPath>
+    </Reference>
+    <Reference Include="Onova, Version=2.1.0.0, Culture=neutral, processorArchitecture=MSIL">
+      <HintPath>..\..\packages\Onova.2.1.0\lib\net46\Onova.dll</HintPath>
+    </Reference>
     <Reference Include="PortableDevices, Version=1.0.1.0, Culture=neutral, processorArchitecture=x86">
       <HintPath>..\..\packages\PortableDevices.1.0.1\lib\net45\PortableDevices.dll</HintPath>
       <EmbedInteropTypes>False</EmbedInteropTypes>
@@ -58,6 +64,7 @@
       <Private>True</Private>
     </Reference>
     <Reference Include="System.ComponentModel.Composition" />
+    <Reference Include="System.Configuration" />
     <Reference Include="System.Console, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b03f5f7f11d50a3a, processorArchitecture=MSIL">
       <HintPath>..\..\packages\System.Console.4.0.0\lib\net46\System.Console.dll</HintPath>
       <Private>True</Private>

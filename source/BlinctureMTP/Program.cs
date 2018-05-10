@@ -1,14 +1,18 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Configuration;
 using System.Globalization;
 using System.IO;
 using System.Linq;
 using System.Runtime.CompilerServices;
 using System.Text;
+using System.Threading.Tasks;
 using ExifLib;
 using Kurukuru;
 using Nerven.CommandLineParser;
 using Nerven.CommandLineParser.Extensions;
+using Onova;
+using Onova.Services;
 using PortableDevices;
 
 namespace BlinctureMTP
@@ -68,6 +72,8 @@ namespace BlinctureMTP
                     case "instructionsonfile":
                     case "iof":
                         return InstructionsOnFileCommand(commandLine);
+                    case "update":
+                        return UpdateCommand();
                     case "interactive":
                     case "i":
                     case null:
@@ -280,6 +286,51 @@ namespace BlinctureMTP
             
             Console.WriteLine($"[{nameof(EXIT_CODE_OK)}]");
             return EXIT_CODE_OK;
+        }
+
+        public static int UpdateCommand()
+        {
+            PrintCommandName();
+
+            var manager = new UpdateManager(
+                new GithubPackageResolver(
+                    ConfigurationManager.AppSettings["SelfUpdateGitHubUser"],
+                    ConfigurationManager.AppSettings["SelfUpdateGitHubRepo"],
+                    $"{nameof(BlinctureMTP)}.zip"),
+                new ZipPackageExtractor());
+
+            return Task.Run(async () =>
+            {
+                var exitCode = EXIT_CODE_UNKNOWN_ERROR;
+                await Spinner.StartAsync("Checking for updates ...", async spinner =>
+                {
+                    try
+                    {
+                        var status = await manager.CheckForUpdatesAsync().ConfigureAwait(false);
+                        if (status.CanUpdate)
+                        {
+                            spinner.Text = $"Found new version '{status.LastVersion}'.";
+                            await manager.PrepareUpdateAsync(status.LastVersion).ConfigureAwait(false);
+                            manager.LaunchUpdater(status.LastVersion, false);
+                            exitCode = EXIT_CODE_OK;
+                        }
+                        else
+                        {
+                            manager.Cleanup();
+                            spinner.Info("No updates found.");
+                            exitCode = EXIT_CODE_OK;
+                        }
+                    }
+                    catch
+                    {
+                        spinner.Fail("Update failed.");
+                        exitCode = EXIT_CODE_UNKNOWN_ERROR;
+                        throw;
+                    }
+                }).ConfigureAwait(false);
+
+                return exitCode;
+            }).Result;
         }
 
         public static int InteractiveCommand()
