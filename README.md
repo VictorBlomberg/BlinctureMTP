@@ -42,7 +42,7 @@ Transfers files from device.
 ````
 
 ````
-> BlinctureMTP.exe transfer --dateTimePattern "yyyyMM\/yyyyMMdd\/HHmmss" "<device id>" "/sdcard/DCIM/Camera" C:\Photos
+> BlinctureMTP.exe transfer --waitOnFail --dateTimePattern "yyyyMM\/yyyyMMdd\/HHmmss" "<device id>" "/sdcard/DCIM/Camera" C:\Photos
 ````
 
 ## Known Issues

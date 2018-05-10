@@ -6,12 +6,15 @@ using System.Linq;
 using System.Runtime.CompilerServices;
 using System.Text;
 using ExifLib;
+using Kurukuru;
 using Nerven.CommandLineParser;
 using Nerven.CommandLineParser.Extensions;
 using PortableDevices;
 
 namespace BlinctureMTP
 {
+    // di "\\\\?\usb#vid_04e8&pid_6860&ms_comp_mtp&samsung_android#6&5c6399&0&0000#{6ac27878-a6fa-4155-ba85-f98f491d4f33}" "/ExtData/DCIM/Camera"
+    // transfer "\\\\?\usb#vid_04e8&pid_6860&ms_comp_mtp&samsung_android#6&5c6399&0&0000#{6ac27878-a6fa-4155-ba85-f98f491d4f33}" "/ExtData/DCIM/OpenCamera" C:\Temp\BM
     public static class Program
     {
         // If files/directories on an Android device seems to be missing when browsing over MTP,
@@ -32,7 +35,16 @@ namespace BlinctureMTP
         {
             var commandLine = GetCommandLine(Environment.CommandLine, true);
 
-            return Main(commandLine);
+            var exitCode = Main(commandLine);
+            var waitForUser = commandLine.HasFlag("wait")
+                              || (exitCode == EXIT_CODE_OK
+                                  ? commandLine.HasFlag("waitOnSuccess")
+                                  : commandLine.HasFlag("waitOnFail"));
+
+            if (waitForUser)
+                Console.ReadLine();
+
+            return exitCode;
         }
 
         public static int Main(CommandLineItemCollection commandLine)
@@ -112,6 +124,8 @@ namespace BlinctureMTP
 
         public static int DeviceInfoCommand(CommandLineItemCollection commandLine)
         {
+            int? exitCode;
+
             PrintCommandName();
 
             var deviceId = commandLine.GetArgument(0)?.Value;
@@ -120,11 +134,11 @@ namespace BlinctureMTP
             PortableDevice device = default;
             try
             {
-                var (connectAndGetDeviceAndDirectoryExitCode, d, directory) = ConnectAndGetDeviceAndDirectory(deviceId, directoryPath);
-                device = d;
+                PortableDeviceFolder directory;
+                 (exitCode, device, directory) = ConnectAndGetDeviceAndDirectory(deviceId, directoryPath);
 
-                if (connectAndGetDeviceAndDirectoryExitCode.HasValue)
-                    return connectAndGetDeviceAndDirectoryExitCode.Value;
+                if (exitCode.HasValue)
+                    return exitCode.Value;
 
                 PrintDirectory(directory);
             }
@@ -139,6 +153,7 @@ namespace BlinctureMTP
 
         public static int TransferCommand(CommandLineItemCollection commandLine)
         {
+            int? exitCode;
             PrintCommandName();
 
             var deviceId = commandLine.GetArgument(0)?.Value;
@@ -155,39 +170,44 @@ namespace BlinctureMTP
             SetHidden(CreateDirectoryIfMissing(tempTargetDirectoryPath));
 
             PortableDevice device = default;
+            PortableDeviceFolder directory;
             try
             {
-                var (connectAndGetDeviceAndDirectoryExitCode, d, directory) = ConnectAndGetDeviceAndDirectory(deviceId, sourceDirectoryPath);
-                device = d;
-                if (connectAndGetDeviceAndDirectoryExitCode.HasValue)
-                    return connectAndGetDeviceAndDirectoryExitCode.Value;
-
+                (exitCode, device, directory) = ConnectAndGetDeviceAndDirectory(deviceId, sourceDirectoryPath);
+                if (exitCode.HasValue)
+                    return exitCode.Value;
+                
                 foreach (var file in directory.Files.OfType<PortableDeviceFile>())
                 {
-                    var flagTargetFilePath = Path.Combine(targetDirectoryPath, $".{nameof(BlinctureMTP)}-flags", file.Name);
-                    SetHidden(CreateContainingDirectoryIfMissing(flagTargetFilePath));
-                    if (File.Exists(flagTargetFilePath))
+                    Spinner.Start($"Transfering '{file.Name}' ...", spinner =>
                     {
-                        continue;
-                    }
+                        var flagTargetFilePath = Path.Combine(targetDirectoryPath, $".{nameof(BlinctureMTP)}-flags", file.Name);
+                        SetHidden(CreateContainingDirectoryIfMissing(flagTargetFilePath));
+                        if (File.Exists(flagTargetFilePath))
+                        {
+                            spinner.Info("File already transferred.");
+                            return;
+                        }
 
-                    var tempTargetFilePath = Path.Combine(tempTargetDirectoryPath, file.Name);
-                    string targetFileName;
-                    using (var tempTargetFileStream = new FileStream(tempTargetFilePath, FileMode.CreateNew, FileAccess.ReadWrite, FileShare.Read))
-                    {
-                        var data = device.DownloadFileToStream(file);
-                        tempTargetFileStream.Write(data, 0, data.Length);
+                        var tempTargetFilePath = Path.Combine(tempTargetDirectoryPath, file.Name);
+                        string targetFileName;
+                        using (var tempTargetFileStream = new FileStream(tempTargetFilePath, FileMode.CreateNew, FileAccess.ReadWrite, FileShare.Read))
+                        {
+                            var data = device.DownloadFileToStream(file);
+                            tempTargetFileStream.Write(data, 0, data.Length);
 
-                        tempTargetFileStream.Position = 0;
-                        targetFileName = GetTargetFileName(commandLine, file.Name, tempTargetFileStream);
-                        tempTargetFileStream.Close();
-                    }
+                            tempTargetFileStream.Position = 0;
+                            targetFileName = GetTargetFileName(commandLine, file.Name, tempTargetFileStream);
+                            tempTargetFileStream.Close();
+                        }
 
-                    var targetFilePath = Path.Combine(targetDirectoryPath, targetFileName);
-                    CreateContainingDirectoryIfMissing(targetFilePath);
-                    File.Move(tempTargetFilePath, targetFilePath);
-                
-                    File.WriteAllText(flagTargetFilePath, DateTimeOffset.Now.ToString("O"), Utf8Encoding);
+                        var targetFilePath = Path.Combine(targetDirectoryPath, targetFileName);
+                        CreateContainingDirectoryIfMissing(targetFilePath);
+                        File.Move(tempTargetFilePath, targetFilePath);
+
+                        File.WriteAllText(flagTargetFilePath, DateTimeOffset.Now.ToString("O"), Utf8Encoding);
+                        spinner.Succeed($"Transferred '{file.Name}' as '{targetFileName}'.");
+                    });
                 }
             }
             finally
@@ -327,18 +347,35 @@ namespace BlinctureMTP
             return null;
         }
 
-        public static (int?, PortableDevice, PortableDeviceFolder) ConnectAndGetDeviceAndDirectory(string deviceId, string directoryPath)
+        public static (int?, PortableDevice, PortableDeviceFolder) ConnectAndGetDeviceAndDirectory(
+            string deviceId,
+            string directoryPath)
         {
-            var (getDeviceExitCode, device) = GetDevice(deviceId);
-            if (getDeviceExitCode.HasValue)
-                return (getDeviceExitCode.Value, null, null);
+            int? exitCode;
+            PortableDevice device;
 
-            device.Connect();
-            var rootDirectory = device.GetContents();
+            (exitCode, device) = GetDevice(deviceId);
+            if (exitCode.HasValue)
+                return (exitCode.Value, null, null);
 
-            var (getDirectoryStatusCode, directory) = GetDirectory(rootDirectory, directoryPath);
-            if (getDirectoryStatusCode.HasValue)
-                return (getDirectoryStatusCode.Value, null, null);
+            PortableDeviceFolder directory = default;
+            Spinner.Start("Connecting to device ...", spinner =>
+            {
+                device.Connect();
+
+                spinner.Text = "Listing contents ...";
+                var rootDirectory = device.GetContents();
+
+                (exitCode, directory) = GetDirectory(rootDirectory, directoryPath);
+
+                if (exitCode.HasValue)
+                    spinner.Fail("Failed to list contents");
+                else
+                    spinner.Succeed("Connected and contents listed");
+            });
+
+            if (exitCode.HasValue)
+                return (exitCode.GetValueOrDefault(EXIT_CODE_UNKNOWN_COMMAND), null, null);
 
             return (null, device, directory);
         }
